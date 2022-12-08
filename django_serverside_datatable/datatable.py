@@ -1,10 +1,14 @@
-from collections import namedtuple
 import operator
 from django.db.models import Q
 from functools import reduce
-
 order_dict = {'asc': '', 'desc': '-'}
 
+from dataclasses import dataclass
+
+@dataclass
+class Page:
+    start:int = None
+    length:int = None
 
 class DataTablesServer(object):
     def __init__(self, request, columns, qs):
@@ -50,11 +54,11 @@ class DataTablesServer(object):
 
         if _filter:
             data = qs.filter(
-                reduce(operator.or_, _filter)).order_by('%s' % sorting)
+                reduce(operator.or_, _filter)).order_by(*sorting)
             len_data = data.count()
             data = list(data[pages.start:pages.length].values(*self.columns))
         else:
-            data = qs.order_by('%s' % sorting).values(*self.columns)
+            data = qs.order_by(*sorting).values(*self.columns)
             len_data = data.count()
             _index = int(pages.start)
             data = data[_index:_index + (pages.length - pages.start)]
@@ -81,7 +85,7 @@ class DataTablesServer(object):
 
     def sorting(self):
 
-        order = ''
+        order_list = []
         if (self.request_values['iSortCol_0'] != "") and (int(self.request_values['iSortingCols']) > 0):
 
             for i in range(int(self.request_values['iSortingCols'])):
@@ -90,16 +94,20 @@ class DataTablesServer(object):
                 # sort direction
                 sort_direction = self.request_values['sSortDir_' + str(i)]
 
-                order = ('' if order == '' else ',') +order_dict[sort_direction]+self.columns[column_number]
+                order_list.append(order_dict[sort_direction]+self.columns[column_number])
 
-        return order
+
+        return order_list
 
     def paging(self):
+        pages = Page(1,10)
+       
 
-        pages = namedtuple('pages', ['start', 'length'])
+        if (self.request_values.get('iDisplayStart',"") != "") and (self.request_values.get('iDisplayLength',-1) != -1):
+            page_start = int(self.request_values.get('iDisplayStart',1))
+            page_length = page_start + int(self.request_values.get('iDisplayLength',10))
+            pages = Page(page_start, page_length)
 
-        if (self.request_values['iDisplayStart'] != "") and (self.request_values['iDisplayLength'] != -1):
-            pages.start = int(self.request_values['iDisplayStart'])
-            pages.length = pages.start + int(self.request_values['iDisplayLength'])
+
 
         return pages
